@@ -7,3 +7,13 @@ type Anime struct {
 	Season   uint   `json:"season,omitempty"`
 	Episodes uint   `json:"episodes,omitempty"`
 }
+
+type ElasticResponse struct {
+	Hits struct {
+		Hits []struct {
+			ID     string `json:"_id"`
+			Index  string `json:"_index"`
+			Source Anime  `json:"_source"`
+		} `json:"hits"`
+	} `json:"hits"`
+}

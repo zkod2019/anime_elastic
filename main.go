@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	// "github.com/olivere/elastic"
 	api "github.com/elastic/go-elasticsearch/v8/esapi"
 )
 
@@ -21,8 +20,6 @@ func main() {
 	var err error
 	elasticClient, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses: []string{"http://localhost:9200"},
-		Username:  "elastic",
-		Password:  "uPn0EEjhowA=kkhY03wU",
 	})
 
 	if err != nil {
@@ -93,7 +90,7 @@ func Create(cmd Anime) error {
 		return err
 	}
 	req := api.IndexRequest{
-		Index:      "Anime",
+		Index:      "anime",
 		DocumentID: uuid.NewString(),
 		Body:       bytes.NewReader(byts),
 		Refresh:    "true",
@@ -109,7 +106,7 @@ func Create(cmd Anime) error {
 func Read() ([]Anime, error) { // read all docs
 	response, err := elasticClient.Search(
 		elasticClient.Search.WithContext(context.TODO()),
-		elasticClient.Search.WithIndex("Anime"),
+		elasticClient.Search.WithIndex("anime"),
 		elasticClient.Search.WithBody(strings.NewReader(`{"query": {"match_all": {}}}`)),
 		elasticClient.Search.WithTrackTotalHits(true),
 		elasticClient.Search.WithPretty(),
@@ -117,39 +114,18 @@ func Read() ([]Anime, error) { // read all docs
 	if err != nil {
 		return nil, err
 	}
-
-	res := map[string]interface{}{}
-	err = json.NewDecoder(response.Body).Decode(&res)
+	var animeRes []Anime
+	var elasticRes ElasticResponse
+	err = json.NewDecoder(response.Body).Decode(&elasticRes)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(res)
+	for i := range elasticRes.Hits.Hits {
+		fmt.Println(elasticRes.Hits.Hits[i].ID)
+		animeRes = append(animeRes, elasticRes.Hits.Hits[i].Source)
+	}
 
-	return nil, nil
-
-	// return []Anime{
-	// 	{
-	// 		Id:       "1",
-	// 		Title:    "Jujutsu Kaisen",
-	// 		Author:   "Gege Akutami",
-	// 		Season:   1,
-	// 		Episodes: 24,
-	// 	},
-	// 	{
-	// 		Id:       "2",
-	// 		Title:    "Attack on Titan",
-	// 		Author:   "Hajime Isayama",
-	// 		Season:   4,
-	// 		Episodes: 88,
-	// 	},
-	// 	{
-	// 		Id:       "3",
-	// 		Title:    "Nana",
-	// 		Author:   "Ai Yazawa",
-	// 		Season:   1,
-	// 		Episodes: 47,
-	// 	},
-	// }, nil
+	return animeRes, nil
 }
 
 func Update(id string, cmd Anime) error {
@@ -159,7 +135,7 @@ func Update(id string, cmd Anime) error {
 	}
 
 	req := api.UpdateRequest{
-		Index:      "Anime",
+		Index:      "anime",
 		DocumentID: id,
 		Body:       bytes.NewReader(byts),
 		Refresh:    "true",
@@ -175,7 +151,7 @@ func Update(id string, cmd Anime) error {
 
 func Delete(id string) error {
 	req := api.DeleteRequest{
-		Index:      "Anime",
+		Index:      "anime",
 		DocumentID: id,
 	}
 	_, err := req.Do(context.TODO(), elasticClient)
