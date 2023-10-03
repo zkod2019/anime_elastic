@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	//	"github.com/google/uuid"
+
 	api "github.com/elastic/go-elasticsearch/v8/esapi"
 )
 
@@ -79,6 +81,20 @@ func main() {
 		ctx.JSON(204, nil)
 	})
 	api.POST("/search", func(ctx *gin.Context) {
+		var elasticSearchQuery ElasticSearchQuery
+		err := ctx.BindJSON(&elasticSearchQuery) // always need a pointer when binding/unmarshalling
+		if err != nil {
+			fmt.Println(err)
+			ctx.JSON(400, err)
+			return
+		}
+		list, err := Query(elasticSearchQuery.SearchTerm)
+		if err != nil {
+			fmt.Println(err)
+			ctx.JSON(400, err)
+			return
+		}
+		ctx.JSON(200, list)
 
 	})
 	router.Run(":8080")
@@ -129,16 +145,22 @@ func Read() ([]Anime, error) { // read all docs
 }
 
 func Update(id string, cmd Anime) error {
+	fmt.Println("ID IS HERE:" + id)
 	byts, err := json.Marshal(cmd)
 	if err != nil {
 		return err
 	}
-
+	// client.Update("my_index", "id", strings.NewReader(`{doc: { language: "Go" }}`))
+	// elasticClient.Update(
+	// 	"anime",
+	// 	id,
+	// 	bytes.NewReader(byts),
+	// )
 	req := api.UpdateRequest{
 		Index:      "anime",
 		DocumentID: id,
-		Body:       bytes.NewReader(byts),
-		Refresh:    "true",
+		Body:       bytes.NewReader([]byte(fmt.Sprintf(`{"doc":%s}`, byts))), // need to wrap the doc with the updates
+		//Refresh:    "true",
 	}
 
 	_, err = req.Do(context.TODO(), elasticClient)
@@ -163,5 +185,74 @@ func Delete(id string) error {
 }
 
 func Query(query string) ([]Anime, error) { // search for specific doc
-	return nil, nil
+	query = fmt.Sprintf(`
+		{
+		  "track_total_hits": false,
+		  "sort": [
+			{
+			  "_doc": {
+				"order": "desc",
+				"unmapped_type": "boolean"
+			  }
+			}
+		  ],
+		  "fields": [
+			{
+			  "field": "*",
+			  "include_unmapped": "true"
+			},
+			{
+			  "field": "event.createdDateTime",
+			  "format": "strict_date_optional_time"
+			}
+		  ],
+		  "size": 500,
+		  "version": true,
+		  "script_fields": {},
+		  "stored_fields": [
+			"*"
+		  ],
+		  "runtime_mappings": {},
+		  "_source": true,
+		  "query": {
+			"bool": {
+			  "must": [],
+			  "filter": [
+				{
+				  "multi_match": {
+					"type": "best_fields",
+					"query": "%s",
+					"lenient": true
+				  }
+				}
+			  ],
+			  "should": [],
+			  "must_not": []
+			}
+		  }
+		}`, query)
+
+	req := api.SearchRequest{
+		Index: []string{"anime"},
+		Body:  bytes.NewReader([]byte(query)),
+	}
+
+	res, err := req.Do(context.TODO(), elasticClient)
+	if err != nil {
+		return nil, err
+	}
+
+	var animeRes []Anime
+	var elasticRes ElasticResponse
+	err = json.NewDecoder(res.Body).Decode(&elasticRes)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(elasticRes)
+	for i := range elasticRes.Hits.Hits {
+		fmt.Println(elasticRes.Hits.Hits[i].ID)
+		animeRes = append(animeRes, elasticRes.Hits.Hits[i].Source)
+	}
+
+	return animeRes, nil
 }

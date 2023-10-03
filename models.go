@@ -17,3 +17,17 @@ type ElasticResponse struct {
 		} `json:"hits"`
 	} `json:"hits"`
 }
+
+type ElasticSearchQuery struct {
+	SearchTerm string `json:"searchTerm,omitempty"`
+}
+
+/*
+	{
+    "id": "4",
+    "title": "Banana Fish",
+    "author": "Akimi Yoshida",
+    "season": 1,
+    "episodes": 24
+}
+*/
